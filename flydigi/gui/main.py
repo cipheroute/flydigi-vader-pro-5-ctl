@@ -12,6 +12,7 @@ from PyQt5.QtWidgets import (QApplication, QHBoxLayout, QLabel, QListWidget,
 from .. import commands as C
 from ..enums import ConnectType
 from ..updates import check_firmware
+from .lighting_page import LightingPage
 from .pages import (MacrosPage, Page, ProfilesPage, SettingsPage,
                     TestPage)
 from .widgets import BatteryBar, Card, FieldGrid
@@ -154,11 +155,13 @@ class MainWindow(QWidget):
         self.test_page = TestPage(self._set_streaming, self._submit)
         self.macros_page = MacrosPage(self._submit, self._set_streaming)
         self.settings_page = SettingsPage(self._submit)
+        self.lighting_page = LightingPage(self._submit)
 
         for name, page in (("Device", self.device_page),
                            ("Profiles", self.profiles_page),
                            ("Test", self.test_page),
                            ("Macros", self.macros_page),
+                           ("RGB lighting", self.lighting_page),
                            ("Settings", self.settings_page)):
             self.sidebar.addItem(QListWidgetItem(name))
             self.stack.addWidget(page)
@@ -217,6 +220,8 @@ class MainWindow(QWidget):
         page = self.stack.widget(row)
         if page is self.test_page:
             self.test_page.refresh()
+        elif page is self.lighting_page:
+            self.lighting_page.refresh()
         if page is not self.test_page:
             self.test_page.stopped()
         if page is not self.macros_page and self.macros_page.recording:
@@ -235,12 +240,14 @@ class MainWindow(QWidget):
         self.profiles_page.refresh()
         self.macros_page.refresh()
         self.test_page.refresh()
+        self.lighting_page.refresh()
         self.poll.start()
 
     def _on_disconnected(self, reason):
         self.status.setText(reason)
         self.profiles_page.setEnabled(False)
         self.settings_page.setEnabled(False)
+        self.lighting_page.disconnected()
 
     def _on_result(self, tag, value):
         if tag == "info":
@@ -251,6 +258,11 @@ class MainWindow(QWidget):
             self.settings_page.apply_status(value)
         elif tag == "hardware":
             self.settings_page.apply_hardware(value)
+        elif tag in ("lighting_read", "lighting_saved"):
+            self.lighting_page.apply_config(value)
+            if tag == "lighting_saved":
+                self.status.setText(
+                    f"RGB saved and verified on profile {value[0] + 1}.")
         elif tag == "profile_versions":
             self.profiles_page.apply_versions(value)
         elif tag == "profile_blob":
@@ -295,6 +307,10 @@ class MainWindow(QWidget):
         self.status.setText(f"{tag} failed: {line}")
         if tag == "updates":
             self.device_page.update_failed(line)
+        if tag in ("lighting_read", "lighting_saved"):
+            self.lighting_page.failed(line)
+            if tag == "lighting_saved":
+                QMessageBox.critical(self, "RGB save failed", message)
         if tag in ("write_profile", "bind_ns"):
             QMessageBox.critical(self, "Write failed", message)
             self.profiles_page.refresh()

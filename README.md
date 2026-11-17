@@ -1,8 +1,8 @@
-Everything, including the rest of this README, was written by Claude Opus 5 with xhigh thinking, and I didn't read one line of code it wrote. I strictly made this for myself to be something useful, so the code quality is irrelevant to me so long as it works (which for me it does). It used Flydigi Space Station version 4.2.0.9 as a reference, and the firmware version of my controller was 7.1.5.4 at the time. I don't know how any of this will behave if your firmware version is different (Claude claims it added logic to determine if there would be a potential issue or not).
+The original version of this project, including its README, was written by Claude Opus 5 with xhigh thinking. The upstream author's notes below describe that original implementation; this fork adds onboard RGB controls.
 
 I can say that it works on my machine, and is better than having to fire up a Windows laptop, but I can't give any guarantee how it will behave on anyone else's machine. That said, there is a ton of documented legwork in this repo that should make things much faster and easier for anyone who wants to produce their own version of this, whether utilizing AI tools or doing it manually.
 
-This strictly handles button mappings (not keyboard mappings though) and enabling flags on the controller. It does not support RGB management (I just don't care about that so didn't implement it, but I'm confident an LLM could do it quickly if you want that).
+The original implementation handled button mappings (not keyboard mappings) and controller feature flags. This fork also supports onboard RGB settings in the desktop interface.
 
 # flydigi-ctl
 
@@ -17,6 +17,39 @@ all be managed from Linux.
 This is an independent, unofficial project — see `NOTICE.md`. If you are
 picking the code up to extend it, start with `CLAUDE.md`, which covers the
 architecture and the protocol quirks that are easy to get wrong.
+
+## RGB lighting
+
+Open **RGB lighting** in the sidebar. Select an onboard profile, then choose
+**Solid colour**, **Breathing**, **Rainbow**, or **Off**. Solid and breathing
+effects have a colour picker; brightness is 0–100%, and a higher cycle time
+makes animation slower. **Keep current effect** changes only brightness/speed
+without replacing the controller's existing animation or colours.
+
+Nothing is written until **Apply and save**. The application backs up the
+previous RGB blob under `$XDG_DATA_HOME/flydigi-control/backups` (default
+`~/.local/share/flydigi-control/backups`), uploads only lighting data, saves it
+to the controller, and checks the read-back. Mappings, macros, reserved RGB
+fields and the profile's existing revision tag are preserved. A stale read
+is rejected rather than overwriting changes made on the controller.
+
+Reading another profile temporarily selects it on a Vader 5 Pro; the editor
+restores the previously active profile after reads and saves. Edit in PC mode,
+not Nintendo Switch mode. Unsupported RGB layouts are refused, not guessed.
+
+Protocol: the recovered NewXInput commands and LED effect enum in
+[`docs/protocol-rgb-mapping.md`](docs/protocol-rgb-mapping.md), with frame-based
+lighting also described by [OpenFlydigi](https://github.com/mkaliaha/openflydigi/blob/main/flydigi/lighting.py).
+This implementation uses the controller LED enum, not the unrelated accessory
+RGB enum. Frame geometry is read from hardware: a Vader 5 Pro on firmware
+**7.1.5.4**, connected by its 2.4 GHz receiver, returned **320 bytes,
+10 LEDs × 10 frames**, rather than the Apex 5's 12 LEDs.
+
+Run the hardware-free RGB regression checks with:
+
+```sh
+python -m unittest discover -s tests -p test_lighting.py -v
+```
 
 ## Screenshots
 
@@ -52,11 +85,11 @@ SUBSYSTEM=="hidraw", ATTRS{idVendor}=="37d7", MODE="0660", TAG+="uaccess"
 ./flydigi-gui               # desktop interface
 ```
 
-The GUI has five pages: **Device** (identity, battery, firmware and an
+The GUI has six pages: **Device** (identity, battery, firmware and an
 update check), **Profiles** (click a button on the controller to remap it),
 **Test** (press buttons and watch them light up), **Macros** (record a
-sequence and store it on the controller) and **Settings** (every hardware
-toggle, each with the vendor's own explanation behind a `?`).
+sequence and store it on the controller), **RGB lighting** (colour, effects,
+brightness and animation timing), and **Settings** (hardware feature toggles).
 
 ## Start-menu entry
 
